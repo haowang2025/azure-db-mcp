@@ -34,22 +34,14 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push image
+      - name: Build local image for smoke test
         uses: docker/build-push-action@v6
         with:
           context: .
-          push: true
+          load: true
+          push: false
           platforms: linux/amd64
-          tags: |
-            ghcr.io/haowang2025/azure-pg-mcp:latest
-            ghcr.io/haowang2025/azure-pg-mcp:${{ github.sha }}
+          tags: news-agent-b-pg-mcp:ci
           labels: |
             org.opencontainers.image.source=https://github.com/haowang2025/4
             org.opencontainers.image.description=News Intelligence Agent B controlled read-write PostgreSQL MCP server
@@ -58,7 +50,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          IMAGE="ghcr.io/haowang2025/azure-pg-mcp:${GITHUB_SHA}"
           docker run -d --name pg-mcp-smoke -p 8000:8000 \
             -e DBHOST=127.0.0.1 \
             -e DBNAME=smoke \
@@ -66,7 +57,13 @@ jobs:
             -e DBPASSWORD=smoke \
             -e NEWS_SCHEMA=news_agent \
             -e ALLOWED_SCHEMAS=news_agent \
-            "$IMAGE"
+            news-agent-b-pg-mcp:ci
+
+          cleanup() {
+            docker logs pg-mcp-smoke || true
+            docker rm -f pg-mcp-smoke >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
 
           ok=0
           for i in $(seq 1 30); do
@@ -83,9 +80,22 @@ PY
           done
 
           if [ "$ok" -ne 1 ]; then
-            docker logs pg-mcp-smoke
             exit 1
           fi
 
-          docker logs pg-mcp-smoke
-          docker rm -f pg-mcp-smoke
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish tested image
+        shell: bash
+        run: |
+          set -euo pipefail
+          IMAGE=ghcr.io/haowang2025/azure-pg-mcp
+          docker tag news-agent-b-pg-mcp:ci "$IMAGE:latest"
+          docker tag news-agent-b-pg-mcp:ci "$IMAGE:${GITHUB_SHA}"
+          docker push "$IMAGE:latest"
+          docker push "$IMAGE:${GITHUB_SHA}"
