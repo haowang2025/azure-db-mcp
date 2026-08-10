@@ -67,12 +67,7 @@ jobs:
 
           ok=0
           for i in $(seq 1 30); do
-            if python - <<'PY'
-import socket
-s = socket.create_connection(("127.0.0.1", 8000), timeout=1)
-s.close()
-PY
-            then
+            if python -c "import socket; s=socket.create_connection(('127.0.0.1',8000),1); s.close()"; then
               ok=1
               break
             fi
