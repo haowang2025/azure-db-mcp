@@ -146,8 +146,8 @@ http://localhost:8000/mcp
 GitHub Actions builds and pushes:
 
 ```text
-ghcr.io/haowang2025/azure-pg-mcp:latest
-ghcr.io/haowang2025/azure-pg-mcp:<commit-sha>
+ghcr.io/haowang2025/azure-db-mcp:latest
+ghcr.io/haowang2025/azure-db-mcp:<commit-sha>
 ```
 
 The workflow performs a Python syntax check, builds `linux/amd64`, pushes the image, starts the container, and verifies that port 8000 accepts connections.
@@ -179,7 +179,7 @@ az containerapp create \
   --name "$APP" \
   --resource-group "$RG" \
   --environment "$ENV" \
-  --image ghcr.io/haowang2025/azure-pg-mcp:latest \
+  --image ghcr.io/haowang2025/azure-db-mcp:latest \
   --ingress external \
   --target-port 8000 \
   --cpu 0.25 \
