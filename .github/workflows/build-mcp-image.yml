@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - server.py
+      - launcher.py
       - requirements.txt
       - Dockerfile
       - .dockerignore
@@ -43,7 +44,7 @@ jobs:
           platforms: linux/amd64
           tags: news-agent-b-pg-mcp:ci
           labels: |
-            org.opencontainers.image.source=https://github.com/haowang2025/4
+            org.opencontainers.image.source=https://github.com/haowang2025/azure-db-mcp
             org.opencontainers.image.description=News Intelligence Agent B controlled read-write PostgreSQL MCP server
 
       - name: Smoke test server startup
@@ -89,7 +90,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          IMAGE=ghcr.io/haowang2025/azure-pg-mcp
+          IMAGE=ghcr.io/haowang2025/azure-db-mcp
           docker tag news-agent-b-pg-mcp:ci "$IMAGE:latest"
           docker tag news-agent-b-pg-mcp:ci "$IMAGE:${GITHUB_SHA}"
           docker push "$IMAGE:latest"
