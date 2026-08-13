@@ -1,8 +1,11 @@
 import os
 import re
+import secrets
 
 import psycopg
+import uvicorn
 from psycopg import sql
+from starlette.responses import JSONResponse
 
 
 _SCHEMA_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -83,12 +86,74 @@ psycopg.connect = _connect
 import server  # noqa: E402  # Import only after installing the schema rewrite layer.
 
 
+MCP_HOST = os.getenv("MCP_HOST", "0.0.0.0")
+MCP_PORT = int(os.getenv("PORT", os.getenv("MCP_PORT", "8000")))
+MCP_PATH = os.getenv("MCP_PATH", "/mcp")
+MCP_ACCESS_TOKEN = os.getenv("MCP_ACCESS_TOKEN", "")
+
+if not MCP_ACCESS_TOKEN:
+    raise RuntimeError("Missing required environment variable: MCP_ACCESS_TOKEN")
+
+
+def _normalize_path(path: str) -> str:
+    path = "/" + (path or "").lstrip("/")
+    return path.rstrip("/") or "/"
+
+
+class BearerTokenMiddleware:
+    def __init__(self, app, expected_token: str, protected_path: str):
+        self.app = app
+        self.expected_token = expected_token
+        self.protected_path = _normalize_path(protected_path)
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        if _normalize_path(scope.get("path", "")) != self.protected_path:
+            await self.app(scope, receive, send)
+            return
+
+        authorization = ""
+        for key, value in scope.get("headers", []):
+            if key.lower() == b"authorization":
+                authorization = value.decode("latin-1")
+                break
+
+        scheme, separator, token = authorization.partition(" ")
+        valid = (
+            bool(separator)
+            and scheme.lower() == "bearer"
+            and bool(token)
+            and secrets.compare_digest(token, self.expected_token)
+        )
+
+        if not valid:
+            response = JSONResponse(
+                {"error": "unauthorized"},
+                status_code=401,
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+            await response(scope, receive, send)
+            return
+
+        await self.app(scope, receive, send)
+
+
+mcp_app = server.mcp.streamable_http_app(
+    host=MCP_HOST,
+    streamable_http_path=MCP_PATH,
+    stateless_http=True,
+    json_response=True,
+)
+
+app = BearerTokenMiddleware(
+    mcp_app,
+    expected_token=MCP_ACCESS_TOKEN,
+    protected_path=MCP_PATH,
+)
+
+
 if __name__ == "__main__":
-    server.mcp.run(
-        transport="streamable-http",
-        host=os.getenv("MCP_HOST", "0.0.0.0"),
-        port=int(os.getenv("PORT", os.getenv("MCP_PORT", "8000"))),
-        streamable_http_path=os.getenv("MCP_PATH", "/mcp"),
-        stateless_http=True,
-        json_response=True,
-    )
+    uvicorn.run(app, host=MCP_HOST, port=MCP_PORT)
