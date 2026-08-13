@@ -30,7 +30,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Static Python syntax check
-        run: python -m py_compile server.py
+        run: python -m py_compile server.py launcher.py
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -58,6 +58,7 @@ jobs:
             -e DBPASSWORD=smoke \
             -e NEWS_SCHEMA=news_agent \
             -e ALLOWED_SCHEMAS=news_agent \
+            -e MCP_ACCESS_TOKEN=ci-test-token \
             news-agent-b-pg-mcp:ci
 
           cleanup() {
